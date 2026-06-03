@@ -1,0 +1,183 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  EMPLOYEE
+}
+
+model User {
+  id          String     @id @default(uuid()) @db.Uuid()
+  firstname   String
+  lastname    String
+  email       String     @unique
+  password    String
+  role        Role       @default(CUSTOMER)
+  otp         Int?
+  verified_at DateTime?
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+  customers   Customer[]
+  admins      Admin[]
+  employees   Employee[]
+}
+
+model Customer {
+  id         String   @id @default(uuid()) @db.Uuid()
+  userId     String   @db.Uuid()
+  user       User     @relation(fields: [userId], references: [id])
+  events     Event[]
+  phone      String
+  address    String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model Admin {
+  id          String       @id @default(uuid()) @db.Uuid()
+  userId      String       @db.Uuid()
+  user        User         @relation(fields: [userId], references: [id])
+  phone       Int
+  lastLogin   DateTime     @updatedAt
+  eventThemes EventTheme[]
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
+}
+
+model Employee {
+  id          String   @id @default(uuid()) @db.Uuid()
+  userId      String   @db.Uuid()
+  user        User     @relation(fields: [userId], references: [id])
+  phone       Int
+  joiningDate DateTime @default(now())
+  designation String
+  tasks       Task[]
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  PARTIAL
+}
+
+enum BookingStatus {
+  REJECTED
+  ACCEPTED
+  COMPLETED
+  PENDING
+  REQUESTED
+}
+
+model Event {
+  id            String        @id @default(uuid()) @db.Uuid()
+  customerId    String        @db.Uuid()
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  eventName     String
+  eventType     String
+  eventTheme    String
+  eventDate     DateTime
+  eventVenue    String
+  guestCount    Int
+  budget        Int
+  paymentStatus PaymentStatus @default(PENDING)
+  bookingStatus BookingStatus @default(REQUESTED)
+  tasks         Task[]
+  payment       Payment[]
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum Status {
+  PENDING
+  INPROGRESS
+  COMPLETED
+}
+
+model Task {
+  id              String   @id @default(uuid()) @db.Uuid()
+  eventId         String   @db.Uuid()
+  event           Event    @relation(fields: [eventId], references: [id])
+  assignedToEmpId String   @db.Uuid()
+  employee        Employee @relation(fields: [assignedToEmpId], references: [id])
+  taskTitle       String
+  taskDescription String
+  priority        Priority @default(LOW)
+  assignDate      DateTime
+  status          Status   @default(PENDING)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+}
+
+model EventTheme {
+  id         String   @id @default(uuid()) @db.Uuid()
+  adminId    String   @db.Uuid()
+  admin      Admin    @relation(fields: [adminId], references: [id])
+  themeName  String
+  themeType  String
+  themePrice Int
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+enum paymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  UPI
+  NET_BANKING
+  WALLET
+  CASH_ON_DELIVERY
+  PAYPAL
+  RAZORPAY
+}
+
+enum PaymentModelPaymentStatus {
+  SUCCESS
+  FAILED
+  PENDING
+}
+
+model Payment {
+  id            String  @id @default(uuid()) @db.Uuid()
+  eventId       String? @db.Uuid()
+  event         Event?  @relation(fields: [eventId], references: [id])
+  paymentAmount Float
+
+  // cardDetail
+  cardNumber  String
+  expiryMonth Int
+  expiryYear  Int
+  cvv         String
+
+  // Razorpay Details
+  razorpayOrderId   String
+  razorpayPaymentId String
+  razorpaySignature String
+
+  paymentMethod paymentMethod             @default(RAZORPAY)
+  status        PaymentModelPaymentStatus @default(PENDING)
+
+  paidAt DateTime @default(now())
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
