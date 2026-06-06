@@ -25,15 +25,16 @@ const API_URL = import.meta.env.VITE_BACKEND_URL;
 // console.log(`${API_URL}/index/createEvent`)
 
 interface Booking {
-  _id: string;
+  id: string;
   eventName: string;
   eventType?: string;
-  theme?: string;
+  eventTheme?: string;
   eventDate: string;
-  venue: string;
+  eventVenue: string;
   guestCount: number;
-  totalAmount: number;
+  budget: number;
   totalPaid: number;
+  paymentStatus?: string;
   progress: number;
 }
 
@@ -612,36 +613,34 @@ export default function Page() {
   const queryClient = useQueryClient();
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(
-    null,
-  );
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [focusedPaymentAmount, setFocusedPaymentAmount] = useState(false);
 
   const floatingPaymentAmount =
     focusedPaymentAmount || paymentAmount.length > 0;
 
-  const handleOpenPaymentModal = (bookingId: string) => {
-    setSelectedBookingId(bookingId);
+  const handleOpenPaymentModal = (booking: Booking) => {
+    setSelectedBooking(booking);
     setPaymentAmount("");
     setIsPaymentModalOpen(true);
   };
 
   const handleClosePaymentModal = () => {
     setIsPaymentModalOpen(false);
-    setSelectedBookingId(null);
+    setSelectedBooking(null);
     setPaymentAmount("");
     setFocusedPaymentAmount(false);
   };
 
   const paymentMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedBookingId) throw new Error("bookingId is required");
+      if (!selectedBooking?.id) throw new Error("bookingId is required");
       if (!paymentAmount) throw new Error("paymentAmount is required");
 
       const paymentAmountNumber = Number(paymentAmount);
       const remainingAmount =
-        (selectedBooking?.totalAmount ?? 0) - (selectedBooking?.totalPaid ?? 0);
+        (selectedBooking?.budget ?? 0) - (selectedBooking?.totalPaid ?? 0);
 
       if (Number.isNaN(paymentAmountNumber) || paymentAmountNumber <= 0) {
         throw new Error("Payment amount must be a valid positive number");
@@ -656,7 +655,7 @@ export default function Page() {
       }
 
       const orderResponse = await createRazorpayOrder({
-        bookingId: selectedBookingId,
+        bookingId: selectedBooking.id,
         paymentAmount: paymentAmountNumber,
       });
 
@@ -678,7 +677,7 @@ export default function Page() {
           handler: async (response) => {
             try {
               await verifyRazorpayPayment({
-                bookingId: selectedBookingId,
+                bookingId: selectedBooking.id,
                 paymentAmount: paymentAmountNumber,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
@@ -722,13 +721,8 @@ export default function Page() {
 
   // console.log(data?.events?.map((event)=> event.eventName))
 
-  const selectedBooking = data?.events?.find(
-    (booking: Booking) => booking._id === selectedBookingId,
-  );
-
-  
   const remainingAmount =
-    (selectedBooking?.totalAmount ?? 0) - (selectedBooking?.totalPaid ?? 0);
+    (selectedBooking?.budget ?? 0) - (selectedBooking?.totalPaid ?? 0);
 
   const handleOpenBookingModal = () => {
     setIsBookingModalOpen(true);
@@ -780,20 +774,20 @@ export default function Page() {
           <div className="left-4 p-2 my-4 rounded-xl max-w-250 flex flex-col gap-10">
             {data?.events?.map((booking) => (
               <div
-                key={booking._id}
+                key={booking.id}
                 className="mb-4 bg-muted/50 p-3 rounded-xl"
               >
                 <div className="flex justify-between">
                   <div>
                     <h2 className="font-bold text-xl">{booking.eventName}</h2>
-                    <p>Wedding - Classic Elegant</p>
+                    <p>{booking.eventType} - {booking.eventTheme}</p>
                   </div>
                   <div className="flex gap-3 mt-4">
                     <span className=" bg-black max-h-max max-w-max px-3 text-xs rounded-md text-white">
-                      in-progress
+                      {booking.bookingStatus || "in-progress"}
                     </span>
                     <span className="bg-[#dbeafe] max-h-max max-w-max px-4 text-xs rounded-md text-[#193cba]">
-                      partial
+                      {booking.paymentStatus || "partial"}
                     </span>
                   </div>
                 </div>
@@ -825,11 +819,11 @@ export default function Page() {
                 <div className="">
                   <div className="relative">
                     <p>Event Progress</p>
-                    <p className="">{/*{booking.progress}*/}10%</p>
+                    <p className="">{booking.progress}%</p>
                     <div className="max-w-7xl h-3 border border-black rounded-xl overflow-hidden">
                       <div
                         className="h-full bg-black"
-                        style={{ width: `10%` }}
+                        style={{ width: `${booking.progress}%` }}
                       />
                     </div>
                   </div>
@@ -850,7 +844,7 @@ export default function Page() {
 
                   <button
                     type="button"
-                    onClick={() => handleOpenPaymentModal(booking?._id)}
+                    onClick={() => handleOpenPaymentModal(booking)}
                     className="bg-black rounded-xl p-2"
                   >
                     <span className="text-white">Make Payment</span>

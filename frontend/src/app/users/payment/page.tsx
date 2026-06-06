@@ -21,12 +21,15 @@ import { useState } from "react";
 const INDEX_BACKEND_API_URL = import.meta.env.VITE_INDEX_BACKEND_URL;
 
 interface Booking {
+  id?: string;
   _id: string;
   eventName: string;
   eventType?: string;
+  eventTheme?: string;
   theme?: string;
   eventDate: string;
-  venue: string;
+  eventVenue?: string;
+  venue?: string;
   guestCount: number;
   totalAmount: number;
   budget?: number;
@@ -178,31 +181,31 @@ const verifyRazorpayPayment = async (
 export default function Page() {
   const queryClient = useQueryClient();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(
-    null,
-  );
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [focusedPaymentAmount, setFocusedPaymentAmount] = useState(false);
 
   const floatingPaymentAmount =
     focusedPaymentAmount || paymentAmount.length > 0;
 
-  const handleOpenPaymentModal = (bookingId: string) => {
-    setSelectedBookingId(bookingId);
+  const handleOpenPaymentModal = (booking: Booking) => {
+    setSelectedBooking(booking);
     setPaymentAmount("");
     setIsPaymentModalOpen(true);
   };
 
   const handleClosePaymentModal = () => {
     setIsPaymentModalOpen(false);
-    setSelectedBookingId(null);
+    setSelectedBooking(null);
     setPaymentAmount("");
     setFocusedPaymentAmount(false);
   };
 
   const paymentMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedBookingId) throw new Error("bookingId is required");
+      const bookingId = selectedBooking?.id ?? selectedBooking?._id;
+
+      if (!bookingId) throw new Error("bookingId is required");
       if (!paymentAmount) throw new Error("paymentAmount is required");
 
       const paymentAmountNumber = Number(paymentAmount);
@@ -222,7 +225,7 @@ export default function Page() {
       }
 
       const orderResponse = await createRazorpayOrder({
-        bookingId: selectedBookingId,
+        bookingId,
         paymentAmount: paymentAmountNumber,
       });
 
@@ -244,7 +247,7 @@ export default function Page() {
           handler: async (response) => {
             try {
               await verifyRazorpayPayment({
-                bookingId: selectedBookingId,
+                bookingId,
                 paymentAmount: paymentAmountNumber,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
@@ -290,10 +293,6 @@ export default function Page() {
 
   const getBookingTotal = (booking?: Booking | null) =>
     booking?.totalAmount ?? booking?.budget ?? 0;
-
-  const selectedBooking = data?.events?.find(
-    (booking: Booking) => booking._id === selectedBookingId,
-  );
   const remainingAmount =
     getBookingTotal(selectedBooking) - (selectedBooking?.totalPaid ?? 0);
   const bookings = data?.events ?? [];
@@ -368,19 +367,21 @@ export default function Page() {
                     const bookingTotal = getBookingTotal(booking);
                     const bookingRemaining =
                       bookingTotal - (booking.totalPaid ?? 0);
+                    const bookingId = booking.id ?? booking._id;
                     const paymentStatus =
                       booking.paymentStatus ||
                       (bookingRemaining <= 0 ? "paid" : "partial");
 
                     return (
                       <tr
-                        key={booking._id}
+                        key={bookingId}
                         className="border-b last:border-b-0"
                       >
                         <td className="px-4 py-3">
                           <div className="font-medium">{booking.eventName}</div>
                           <div className="text-xs text-muted-foreground">
                             {booking.eventType ??
+                              booking.eventTheme ??
                               booking.theme ??
                               "Event booking"}
                           </div>
@@ -390,7 +391,9 @@ export default function Page() {
                             ? new Date(booking.eventDate).toLocaleDateString()
                             : "N/A"}
                         </td>
-                        <td className="px-4 py-3">{booking.eventVenue}</td>
+                        <td className="px-4 py-3">
+                          {booking.eventVenue ?? booking.venue ?? "N/A"}
+                        </td>
                         <td className="px-4 py-3">
                           <span className="flex">
                             <IndianRupee className="h-5 w-5 mt-1" />
@@ -425,7 +428,7 @@ export default function Page() {
                         <td className="px-4 py-3">
                           <button
                             type="button"
-                            onClick={() => handleOpenPaymentModal(booking._id)}
+                            onClick={() => handleOpenPaymentModal(booking)}
                             disabled={bookingRemaining <= 0}
                             className="rounded-xl bg-black px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
                           >
