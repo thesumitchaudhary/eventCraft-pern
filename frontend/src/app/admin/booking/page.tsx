@@ -272,7 +272,7 @@ export default function AdminBookingsPage() {
                         <td className="py-2 px-2">{booking.guestCount}</td>
                         <td className="py-2 px-2">
                           <span className="flex">
-                            <IndianRupee className="h-3 w-3 mt-1" /> {booking.totalAmount ?? 0}
+                            <IndianRupee className="h-3 w-3 mt-1" /> {booking.budget ?? 0}
                           </span>
                         </td>
                         <td className="py-2 px-2">

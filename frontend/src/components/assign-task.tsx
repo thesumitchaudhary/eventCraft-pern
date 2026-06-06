@@ -6,7 +6,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 const API_BASE = import.meta.env.VITE_BACKEND_URL || "http://localhost:4041/api";
 
 type BookedEvent = {
-  _id: string;
+  _id?: string;
+  id?: string;
   eventName?: string;
   eventType?: string;
   theme?: string;
@@ -16,12 +17,10 @@ type BookedEvent = {
   totalAmount?: number;
 };
 
-type CustomerWithEvents = {
-  events?: BookedEvent[];
-};
-
 type ShowBookedEventResponse = {
-  customers?: CustomerWithEvents[];
+  result?: {
+    customers?: BookedEvent[];
+  }[];
 };
 
 type EmployeeUser = {
@@ -113,25 +112,26 @@ const AssignTaskModal = ({ open, closeTaskModal }: AssignTaskModalProps) => {
     enabled: open,
   });
 
-  const eventOptions =
-    data?.customers?.flatMap((customer) =>
-      (customer?.events ?? []).map((eventData) => ({
-        value: eventData._id,
-        label: eventData.eventName || "Untitled event",
-      })),
-    ) ?? [];
+  // console.log(empData)
+
+  const bookedEvents = data?.result?.flatMap((users) => users?.customers ?? []) ?? [];
+
+  const eventOptions = bookedEvents.map((eventData) => ({
+    value: eventData.id || eventData.id || "",
+    label: eventData.eventName || "Untitled event",
+  })).filter((option) => option.value);
 
   const employeeOptions =
-    empData?.users?.map((employee) => ({
-      value: String(employee?._id ?? ""),
-      label: `${employee?.firstname ?? ""} ${employee?.lastname ?? ""}`.trim() ||
-        "Unnamed employee",
-    })) ?? [];
+    empData?.users
+      ?.map((employee) => ({
+        value: String(employee?.id ?? ""),
+        label: `${employee?.firstname ?? ""} ${employee?.lastname ?? ""}`.trim() ||
+          "Unnamed employee",
+      }))
+      .filter((option) => option.value) ?? [];
 
   const selectedEvent =
-    data?.customers
-      ?.flatMap((customer) => customer?.events ?? [])
-      ?.find((eventData) => eventData?._id === selectedEventId) ?? null;
+    bookedEvents.find((eventData) => eventData?.id === selectedEventId) ?? null;
 
   const taskMutation = useMutation({
     mutationFn: () => {
@@ -277,7 +277,11 @@ const AssignTaskModal = ({ open, closeTaskModal }: AssignTaskModalProps) => {
             onChange={(value) =>
               setPriority(value ? (String(value) as TaskPriority) : null)
             }
-            data={["Low", "Medium", "High"]}
+            data={[
+              { value: "Low", label: "Low" },
+              { value: "Medium", label: "Medium" },
+              { value: "High", label: "High" },
+            ]}
           />
 
           <TextInput

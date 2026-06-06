@@ -212,7 +212,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     queryFn: fetchMe,
   });
 
-  console.log(data?.result?.firstName ?? data?.result?.firstname);
+  // console.log(data?.result?.firstName ?? data?.result?.firstname);
 
   const queryUser = data?.result;
   const user = {

@@ -135,6 +135,7 @@ router.get("/me", async (req: Request, res: Response) => {
     const employee = await prisma.user.findFirst({
       where: {
         id,
+        role: "EMPLOYEE",
       },
     });
 

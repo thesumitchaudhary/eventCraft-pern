@@ -131,14 +131,15 @@ export default function AdminThemePage() {
     queryKey: ["eventThemes"],
     queryFn: () => fetcher<Theme[]>(`${API_URL}/admin/getAllEventTheme`),
   });
+
   // Normalize response shape: backend returns { result: Theme[] }.
   const themes: Theme[] = (data as any)?.result
     ? (data as any).result
     : Array.isArray(data)
-    ? (data as Theme[])
-    : [];
+      ? (data as Theme[])
+      : [];
 
-  console.log(themes.map((theme) => theme?.themeName));
+  // console.log(themes.map((theme) => theme?.themeName));
 
   const themeDeleteMutation = useMutation({
     mutationFn: (id: string) => deleteTheme(id),
@@ -216,7 +217,7 @@ export default function AdminThemePage() {
             <div>
               <h2 className="text-lg font-semibold">Theme Management</h2>
               <p className="text-sm text-muted-foreground">
-                Total themes: {data.length}
+                Total themes: {data?.result?.map((theme) => theme).length}
               </p>
             </div>
             <div>
@@ -275,13 +276,15 @@ export default function AdminThemePage() {
                           type="text"
                           value={
                             editRow && editRow._id === theme._id
-                              ? editRow.themeName ?? ""
-                              : theme?.themeName ?? ""
+                              ? (editRow.themeName ?? "")
+                              : (theme?.themeName ?? "")
                           }
                           onFocus={() => theme && setEditRow(theme)}
                           onChange={(e) =>
                             setEditRow((prev) => ({
-                              ...(prev && prev._id === theme._id ? prev : theme),
+                              ...(prev && prev._id === theme._id
+                                ? prev
+                                : theme),
                               themeName: e.target.value,
                             }))
                           }
@@ -293,13 +296,15 @@ export default function AdminThemePage() {
                           type="text"
                           value={
                             editRow && editRow._id === theme._id
-                              ? editRow.themeType ?? ""
-                              : theme?.themeType ?? ""
+                              ? (editRow.themeType ?? "")
+                              : (theme?.themeType ?? "")
                           }
                           onFocus={() => theme && setEditRow(theme)}
                           onChange={(e) =>
                             setEditRow((prev) => ({
-                              ...(prev && prev._id === theme._id ? prev : theme),
+                              ...(prev && prev._id === theme._id
+                                ? prev
+                                : theme),
                               themeType: e.target.value,
                             }))
                           }
@@ -315,8 +320,8 @@ export default function AdminThemePage() {
                             inputMode="decimal"
                             value={String(
                               editRow && editRow._id === theme._id
-                                ? editRow.themePrice ?? ""
-                                : theme?.themePrice ?? ""
+                                ? (editRow.themePrice ?? "")
+                                : (theme?.themePrice ?? ""),
                             )}
                             onFocus={() => theme && setEditRow(theme)}
                             onChange={(e) =>

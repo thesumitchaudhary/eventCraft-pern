@@ -78,7 +78,20 @@ export default function AdminDashboardPage() {
       fetcher<BookingResponse>(`${API_ADMIN_BACKEND_URL}/showBookedEvent`),
   });
 
-  const customers = data?.customers ?? [];
+  // console.log(
+  //   data?.result?.flatMap((user) =>
+  //     user.customers?.flatMap((eventsDetails) =>
+  //       eventsDetails?.events?.map((event) => event.eventName),
+  //     ),
+  //   ),
+  // );
+
+
+  const customers =
+    data?.result?.flatMap(
+      (user) =>
+        user.customers?.flatMap((customer) => customer.events ?? []) ?? [],
+    ) ?? [];
 
   const paidByCustomer = customers
     .flatMap((customer) => customer.events ?? [])
@@ -102,6 +115,8 @@ export default function AdminDashboardPage() {
     queryFn: () =>
       fetcher<EmployeeResponse>(`${API_EMPLOYEE_BACKEND_URL}/findEmployee`),
   });
+
+  console.log(data1?.result)
 
   // normalize response safely
   const users: EmployeeUser[] = Array.isArray(data1?.users) ? data1.users : [];
@@ -160,7 +175,9 @@ export default function AdminDashboardPage() {
                 <Users className="h-4 w-4" />
                 <h3>Total Customers</h3>
               </div>
-              {/* <span> {data?.customers.length}</span> */}
+              <span>
+                {data?.result?.flatMap((users) => users.customers).length}
+              </span>
             </div>
             <div className="rounded-xl bg-[#fefdfe]  p-5">
               <div className="flex gap-1">
@@ -168,9 +185,11 @@ export default function AdminDashboardPage() {
                 <h3>Active Bookings</h3>
               </div>
               <span>
-                {/* {data?.customers
-                  .flatMap((customer) => customer?.events ?? [])
-                  .length ?? 0} */}
+                {data?.result?.flatMap((users) =>
+                  users.customers?.map(
+                    (eventDetails) => eventDetails.events.length,
+                  ),
+                )}
               </span>
             </div>
             <div className="rounded-xl bg-[#fefdfe]  p-5">
@@ -279,33 +298,37 @@ export default function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {/* {data?.customers.flatMap((customer) =>
-                  (customer?.events ?? []).map((data) => (
-                    <tr key={data._id} className="border-b border-black">
-                      <td className="py-2 border-b  p-1">{data?.eventName}</td>
-                      <td className="border-b p-1">{data?.eventType}</td>
-                      <td className="border-b p-1">
-                        {new Date(data?.eventDate).toLocaleDateString()}
-                      </td>
-                      <td className="border-b  p-1">
-                        <span className="bg-black text-white text-xs p-1 rounded-md">
-                          {data?.bookingStatus}
-                        </span>
-                      </td>
-                      <td className="border-b p-1">
-                        <span className="text-xs bg-black p-1 text-white rounded-md">
-                          {data?.progress !== 0 ? "in-progress" : "pending"}
-                        </span>
-                      </td>
-                      <td className="border-b p-1">
-                        <span className="flex">
-                          <IndianRupee className="h-5 w-5 mt-1" />{" "}
-                          {data?.totalAmount}
-                        </span>
-                      </td>
-                    </tr>
-                  )),
-                )} */}
+                {data?.result?.flatMap((user) =>
+                  user.customers?.flatMap((eventsDetails) =>
+                    eventsDetails?.events?.map((event) => (
+                      <tr key={event.id} className="border-b border-black">
+                        <td className="py-2 border-b  p-1">
+                          {event?.eventName}
+                        </td>
+                        <td className="border-b p-1">{event?.eventType}</td>
+                        <td className="border-b p-1">
+                          {new Date(event?.eventDate).toLocaleDateString()}
+                        </td>
+                        <td className="border-b  p-1">
+                          <span className="bg-black text-white text-xs p-1 rounded-md">
+                            {event?.bookingStatus.toLowerCase()}
+                          </span>
+                        </td>
+                        <td className="border-b p-1">
+                          <span className="text-xs bg-black p-1 text-white rounded-md">
+                            {event?.progress !== 0 ? "in-progress" : "pending"}
+                          </span>
+                        </td>
+                        <td className="border-b p-1">
+                          <span className="flex">
+                            <IndianRupee className="h-5 w-5 mt-1" />{" "}
+                            {event?.budget}
+                          </span>
+                        </td>
+                      </tr>
+                    )),
+                  ),
+                )}
               </tbody>
             </table>
           </div>

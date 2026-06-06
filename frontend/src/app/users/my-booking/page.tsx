@@ -720,7 +720,7 @@ export default function Page() {
     queryFn: () => fetcher(`${INDEX_BACKEND_API_URL}/my-booking`),
   });
 
-  console.log(data?.events?.map((event)=> event.eventName))
+  // console.log(data?.events?.map((event)=> event.eventName))
 
   const selectedBooking = data?.events?.find(
     (booking: Booking) => booking._id === selectedBookingId,

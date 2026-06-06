@@ -227,7 +227,7 @@ export function EmployeeSidebar({ ...props }: React.ComponentProps<typeof Sideba
     },
   });
 
-  const queryUser = data?.employee?.userId;
+  const queryUser = data?.result;
   const user = {
     name:
       `${queryUser?.firstName || queryUser?.firstname || ""} ${queryUser?.lastName || queryUser?.lastname || ""}`.trim() ||

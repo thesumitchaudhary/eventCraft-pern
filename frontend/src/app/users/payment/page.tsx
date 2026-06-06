@@ -29,6 +29,7 @@ interface Booking {
   venue: string;
   guestCount: number;
   totalAmount: number;
+  budget?: number;
   totalPaid: number;
   progress: number;
   bookingStatus?: string;
@@ -287,13 +288,15 @@ export default function Page() {
 
   console.log(data)
 
+  const getBookingTotal = (booking?: Booking | null) =>
+    booking?.totalAmount ?? booking?.budget ?? 0;
+
   const selectedBooking = data?.events?.find(
     (booking: Booking) => booking._id === selectedBookingId,
   );
   const remainingAmount =
-    (selectedBooking?.budget ?? 0) - (selectedBooking?.totalPaid ?? 0);
+    getBookingTotal(selectedBooking) - (selectedBooking?.totalPaid ?? 0);
   const bookings = data?.events ?? [];
-  // console.log(bookings)
 
 
   return (
@@ -362,8 +365,9 @@ export default function Page() {
                 </thead>
                 <tbody>
                   {bookings.map((booking) => {
+                    const bookingTotal = getBookingTotal(booking);
                     const bookingRemaining =
-                      (booking.totalAmount ?? 0) - (booking.totalPaid ?? 0);
+                      bookingTotal - (booking.totalPaid ?? 0);
                     const paymentStatus =
                       booking.paymentStatus ||
                       (bookingRemaining <= 0 ? "paid" : "partial");
@@ -386,11 +390,11 @@ export default function Page() {
                             ? new Date(booking.eventDate).toLocaleDateString()
                             : "N/A"}
                         </td>
-                        <td className="px-4 py-3">{booking.venue}</td>
+                        <td className="px-4 py-3">{booking.eventVenue}</td>
                         <td className="px-4 py-3">
                           <span className="flex">
                             <IndianRupee className="h-5 w-5 mt-1" />
-                            {Number(booking.budget || 0).toLocaleString()}
+                            {Number(bookingTotal).toLocaleString()}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -458,9 +462,7 @@ export default function Page() {
                     Total Amount:
                     <div className="flex">
                       <IndianRupee className="h-4 w-5 mt-1" />
-                      {Number(
-                        selectedBooking?.totalAmount ?? 0,
-                      ).toLocaleString()}
+                      {Number(getBookingTotal(selectedBooking)).toLocaleString()}
                     </div>
                   </div>
                   <div className="mb-2 text-sm text-gray-600">

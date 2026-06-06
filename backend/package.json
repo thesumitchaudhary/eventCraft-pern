@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/app.ts",
-    "admin:seed": "tsx watch src/seedAdmin.ts"
+    "admin:seed": "tsx watch src/seedAdmin.ts",
+    "prepare": "husky"
   },
   "type": "module",
   "keywords": [],
@@ -20,6 +21,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "husky": "^9.1.7",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^8.0.7",
     "pg": "^8.20.0",
