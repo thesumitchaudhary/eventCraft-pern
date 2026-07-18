@@ -4,6 +4,7 @@ import crypto from "crypto";
 import Razorpay from "razorpay";
 import { prisma } from "../libs/prisma.ts";
 import {
+  TicketModelStatus,
   PaymentModelPaymentStatus,
   PaymentStatus,
   paymentMethod,
@@ -58,6 +59,37 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value,
   );
+}
+
+async function getAnyEmployeeId() {
+  const employee = await prisma.employee.findFirst({
+    select: { id: true },
+    orderBy: { created_at: "asc" },
+  });
+
+  return employee?.id;
+}
+
+async function ensureCustomerProfile(userId: string) {
+  const existingCustomer = await prisma.customer.findFirst({
+    where: { userId },
+    select: { id: true },
+  });
+
+  if (existingCustomer) {
+    return existingCustomer.id;
+  }
+
+  const createdCustomer = await prisma.customer.create({
+    data: {
+      userId,
+      phone: "",
+      address: "",
+    },
+    select: { id: true },
+  });
+
+  return createdCustomer.id;
 }
 
 async function getAlreadyPaid(eventId: string) {
@@ -382,11 +414,285 @@ router.post(
 );
 
 router.get(
+  "/support-ticket",
+  authMiddleware,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const normalizedRole = String(req.user?.role || "")
+        .trim()
+        .toUpperCase();
+
+      if (!userId || !isUuid(userId)) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
+
+      if (normalizedRole === "CUSTOMER") {
+        const customer = await prisma.customer.findFirst({
+          where: { userId },
+          select: { id: true },
+        });
+
+        if (!customer) {
+          return res.status(404).json({
+            success: false,
+            message: "Customer profile not found",
+          });
+        }
+
+        let ticket = await prisma.ticket.findFirst({
+          where: {
+            cusotmerId: customer.id,
+            status: {
+              in: [
+                TicketModelStatus.PENDING,
+                TicketModelStatus.ACTICE,
+                TicketModelStatus.ESCALATED,
+              ],
+            },
+          },
+          orderBy: { created_at: "desc" },
+        });
+
+        if (!ticket) {
+          ticket = await prisma.ticket.findFirst({
+            where: { cusotmerId: customer.id },
+            orderBy: { updated_at: "desc" },
+          });
+        }
+
+        if (!ticket) {
+          const employeeId = await getAnyEmployeeId();
+
+          if (!employeeId) {
+            return res.status(404).json({
+              success: false,
+              message: "No support employee is available",
+            });
+          }
+
+          ticket = await prisma.ticket.create({
+            data: {
+              cusotmerId: customer.id,
+              employeeId,
+              status: TicketModelStatus.PENDING,
+            },
+          });
+        }
+
+        return res.status(200).json({
+          success: true,
+          ticketId: ticket.id,
+          status: ticket.status,
+        });
+      }
+
+      if (normalizedRole === "EMPLOYEE" || normalizedRole === "STAFF") {
+        const employee = await prisma.employee.findFirst({
+          where: { userId },
+          select: { id: true },
+        });
+
+        if (!employee) {
+          return res.status(404).json({
+            success: false,
+            message: "Employee profile not found",
+          });
+        }
+
+        let ticket = await prisma.ticket.findFirst({
+          where: {
+            employeeId: employee.id,
+            status: {
+              in: [TicketModelStatus.ACTICE, TicketModelStatus.ESCALATED],
+            },
+          },
+          orderBy: { updated_at: "desc" },
+        });
+
+        if (!ticket) {
+          ticket = await prisma.ticket.findFirst({
+            where: {
+              status: {
+                in: [
+                  TicketModelStatus.PENDING,
+                  TicketModelStatus.ESCALATED,
+                  TicketModelStatus.ACTICE,
+                ],
+              },
+            },
+            orderBy: { created_at: "asc" },
+          });
+
+          if (ticket) {
+            ticket = await prisma.ticket.update({
+              where: { id: ticket.id },
+              data: {
+                employeeId: employee.id,
+                status:
+                  ticket.status === TicketModelStatus.PENDING
+                    ? TicketModelStatus.ACTICE
+                    : ticket.status,
+              },
+            });
+          }
+        }
+
+        if (!ticket) {
+          ticket = await prisma.ticket.findFirst({
+            where: { employeeId: employee.id },
+            orderBy: { updated_at: "desc" },
+          });
+        }
+
+        if (!ticket) {
+          ticket = await prisma.ticket.findFirst({
+            where: {
+              status: {
+                in: [
+                  TicketModelStatus.PENDING,
+                  TicketModelStatus.ACTICE,
+                  TicketModelStatus.ESCALATED,
+                  TicketModelStatus.RESOLVED,
+                ],
+              },
+            },
+            orderBy: { updated_at: "desc" },
+          });
+
+          if (ticket) {
+            ticket = await prisma.ticket.update({
+              where: { id: ticket.id },
+              data: {
+                employeeId: employee.id,
+                status:
+                  ticket.status === TicketModelStatus.PENDING
+                    ? TicketModelStatus.ACTICE
+                    : ticket.status,
+              },
+            });
+          }
+        }
+
+        if (!ticket) {
+          const customerId = await ensureCustomerProfile(userId);
+
+          ticket = await prisma.ticket.create({
+            data: {
+              cusotmerId: customerId,
+              employeeId: employee.id,
+              status: TicketModelStatus.ACTICE,
+            },
+          });
+        }
+
+        return res.status(200).json({
+          success: true,
+          ticketId: ticket.id,
+          status: ticket.status,
+        });
+      }
+
+      if (normalizedRole === "ADMIN") {
+        let ticket = await prisma.ticket.findFirst({
+          where: {
+            status: {
+              in: [
+                TicketModelStatus.PENDING,
+                TicketModelStatus.ACTICE,
+                TicketModelStatus.ESCALATED,
+                TicketModelStatus.RESOLVED,
+              ],
+            },
+          },
+          orderBy: { updated_at: "desc" },
+        });
+
+        if (!ticket) {
+          const customerId = await ensureCustomerProfile(userId);
+          const employeeId = await getAnyEmployeeId();
+
+          if (!employeeId) {
+            return res.status(404).json({
+              success: false,
+              message: "No support employee is available",
+            });
+          }
+
+          ticket = await prisma.ticket.create({
+            data: {
+              cusotmerId: customerId,
+              employeeId,
+              status: TicketModelStatus.ACTICE,
+            },
+          });
+        }
+
+        return res.status(200).json({
+          success: true,
+          ticketId: ticket.id,
+          status: ticket.status,
+        });
+      }
+
+      return res.status(403).json({
+        success: false,
+        message: `Unsupported role for support ticket: ${
+          normalizedRole || "unknown"
+        }`,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: getReadableErrorMessage(error, "Failed to get support ticket"),
+      });
+    }
+  },
+);
+
+router.get("/messages/:ticketId", async (req: Request, res: Response) => {
+  try {
+    const { ticketId } = req.params;
+
+    if (!isUuid(ticketId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid ticketId",
+        data: [],
+      });
+    }
+
+    const messages = await prisma.message.findMany({
+      where: { ticketId },
+      orderBy: { created_at: "asc" },
+    });
+
+    return res.status(200).json(messages);
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch messages",
+      data: [],
+    });
+  }
+});
+
+router.get(
   "/my-booking",
   authMiddleware,
   async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
 
       const customer = await prisma.customer.findFirst({
         where: {
@@ -405,7 +711,9 @@ router.get(
       });
 
       if (!customer) {
-        res.status(404).json({ success: false, message: "customer not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "customer not found" });
       }
 
       const eventIds = customer.events.map((event) => event.id);
@@ -416,14 +724,14 @@ router.get(
           eventId: {
             in: eventIds,
           },
-          status: "SUCCESS",
+          status: PaymentModelPaymentStatus.SUCCESS,
         },
         _sum: {
           paymentAmount: true,
         },
       });
 
-      const paymentMap = {};
+        const paymentMap: Record<string, number> = {};
 
       payments.forEach((payment) => {
         if (payment.eventId) {
@@ -437,13 +745,14 @@ router.get(
       }));
 
       res.status(200).json({
-        success: true, customer: {
+        success: true,
+        customer: {
           name: `${customer.user.firstname} ${customer.user.lastname}`,
           email: customer.user.email,
           phone: customer.phone,
           address: customer.address,
         },
-         events: eventsWithPayment,
+        events: eventsWithPayment,
       });
     } catch (error) {
       res.status(500).json({

@@ -39,7 +39,7 @@ export default function Page() {
     queryFn: async () => await fetcher(`${API_INDEX_BASE_URL}/my-booking`),
   });
 
-  console.log(data?.events.length);
+  console.log(data?.events?.map((details) => details.totalPaid));
 
   return (
     <SidebarProvider>
@@ -86,10 +86,8 @@ export default function Page() {
             <div className="rounded-xl bg-muted/50 p-10">
               <h3>Total Spent</h3>
               <span className="flex gap-1">
-                {/* <IndianRupee className="h-5 w-5 mt-1" /> {data?.events.reduce(
-                  (total, event) => total + event.totalPaid,
-                  0,
-                )} */}
+                <IndianRupee className="h-5 w-5 mt-1" />{" "}
+                {data?.events?.map((details) => details.totalPaid)}
               </span>
             </div>
           </div>

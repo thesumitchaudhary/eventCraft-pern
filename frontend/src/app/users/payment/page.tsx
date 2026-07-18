@@ -295,6 +295,7 @@ export default function Page() {
     booking?.totalAmount ?? booking?.budget ?? 0;
   const remainingAmount =
     getBookingTotal(selectedBooking) - (selectedBooking?.totalPaid ?? 0);
+  const normalizedRemainingAmount = Math.max(remainingAmount, 0);
   const bookings = data?.events ?? [];
 
 
@@ -488,9 +489,28 @@ export default function Page() {
                   label="Payment Amount"
                   value={paymentAmount}
                   min={1}
-                  max={remainingAmount > 0 ? remainingAmount : undefined}
+                  max={normalizedRemainingAmount > 0 ? normalizedRemainingAmount : undefined}
                   step="0.01"
-                  onChange={(e) => setPaymentAmount(e.currentTarget.value)}
+                  onChange={(e) => {
+                    const nextValue = e.currentTarget.value;
+
+                    if (!nextValue) {
+                      setPaymentAmount("");
+                      return;
+                    }
+
+                    const numericValue = Number(nextValue);
+
+                    if (
+                      Number.isFinite(numericValue) &&
+                      numericValue > normalizedRemainingAmount
+                    ) {
+                      setPaymentAmount(String(normalizedRemainingAmount));
+                      return;
+                    }
+
+                    setPaymentAmount(nextValue);
+                  }}
                   onFocus={() => setFocusedPaymentAmount(true)}
                   onBlur={() => setFocusedPaymentAmount(false)}
                   placeholder={focusedPaymentAmount ? "Enter amount" : ""}
@@ -529,6 +549,7 @@ export default function Page() {
                   <button
                     type="submit"
                     className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={normalizedRemainingAmount <= 0}
                     disabled={paymentMutation.isPending}
                   >
                     {paymentMutation.isPending

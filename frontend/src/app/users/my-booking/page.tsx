@@ -34,7 +34,9 @@ interface Booking {
   guestCount: number;
   budget: number;
   totalPaid: number;
+  totalAmount?: number;
   paymentStatus?: string;
+  bookingStatus?: string;
   progress: number;
 }
 
@@ -49,6 +51,7 @@ interface EventTheme {
   eventType?: string;
   eventTheme?: string;
   type?: string;
+  theme?: string;
 }
 
 interface CreateOrderPayload {
@@ -277,7 +280,6 @@ function EventRegistrationModal({
   } = useContext(EventContext);
 
   const [focusedEventname, setFocusedEventname] = useState(false);
-  const [focusedDate, setFocusedDate] = useState(false);
   const [focusedVenue, setFocusedVenue] = useState(false);
   const [focusedGuestCount, setFocusedGuestCount] = useState(false);
   const [focusedBudget, setFocusedBudget] = useState(false);
@@ -434,6 +436,7 @@ function EventRegistrationModal({
             createEventMutation.mutate();
           }}
         >
+      const normalizedRemainingAmount = Math.max(remainingAmount, 0);
           <div className="grid gap-4 md:grid-cols-2">
             <TextInput
               label="Event Name"
@@ -506,8 +509,6 @@ function EventRegistrationModal({
               label="Select Date"
               value={date}
               onChange={(e) => setDate(e.currentTarget.value)}
-              onFocus={() => setFocusedDate(true)}
-              onBlur={() => setFocusedDate(false)}
               classNames={{
                 root: "relative mt-1",
                 input:
@@ -723,6 +724,7 @@ export default function Page() {
 
   const remainingAmount =
     (selectedBooking?.budget ?? 0) - (selectedBooking?.totalPaid ?? 0);
+  const normalizedRemainingAmount = Math.max(remainingAmount, 0);
 
   const handleOpenBookingModal = () => {
     setIsBookingModalOpen(true);
@@ -906,9 +908,28 @@ export default function Page() {
                   label="Payment Amount"
                   value={paymentAmount}
                   min={1}
-                  max={remainingAmount > 0 ? remainingAmount : undefined}
+                  max={normalizedRemainingAmount > 0 ? normalizedRemainingAmount : undefined}
                   step="0.01"
-                  onChange={(e) => setPaymentAmount(e.currentTarget.value)}
+                  onChange={(e) => {
+                    const nextValue = e.currentTarget.value;
+
+                    if (!nextValue) {
+                      setPaymentAmount("");
+                      return;
+                    }
+
+                    const numericValue = Number(nextValue);
+
+                    if (
+                      Number.isFinite(numericValue) &&
+                      numericValue > normalizedRemainingAmount
+                    ) {
+                      setPaymentAmount(String(normalizedRemainingAmount));
+                      return;
+                    }
+
+                    setPaymentAmount(nextValue);
+                  }}
                   onFocus={() => setFocusedPaymentAmount(true)}
                   onBlur={() => setFocusedPaymentAmount(false)}
                   placeholder={focusedPaymentAmount ? "Enter amount" : ""}
