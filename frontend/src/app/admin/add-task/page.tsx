@@ -170,14 +170,14 @@ export default function AdminThemePage() {
                       : "bg-green-100 text-green-600"
                 }`}
                         >
-                          {row.priority}
+                          {row.priority.charAt(0).toUpperCase() + row.priority.slice(1).toLowerCase()}
                         </span>
                       </td>
 
                       {/* Status */}
                       <td className="px-2 py-3">
                         <span className="text-xs font-medium px-1 py-1 rounded-full bg-gray-900 text-white">
-                          {row.status}
+                          {row.status.charAt(0).toUpperCase() + row.status.slice(1).toLowerCase()}
                         </span>
                       </td>
 

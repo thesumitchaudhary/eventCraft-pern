@@ -4,7 +4,10 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { prisma } from "../libs/prisma.ts";
 import authMiddleware from "../middleware/authMiddleware.ts";
-import { Priority } from "../generated/prisma/enums.ts";
+import {
+  PaymentModelPaymentStatus,
+  Priority,
+} from "../generated/prisma/enums.ts";
 
 const router = express.Router();
 
@@ -222,7 +225,30 @@ router.get("/showBookedEvent", async (req: Request, res: Response) => {
       include: {
         customers: {
           include: {
-            events: true,
+            events: {
+              include: {
+                payment: {
+                  where: {
+                    status: PaymentModelPaymentStatus.SUCCESS,
+                  },
+                  orderBy: {
+                    paidAt: "desc",
+                  },
+                  select: {
+                    id: true,
+                    eventId: true,
+                    paymentAmount: true,
+                    paymentMethod: true,
+                    status: true,
+                    paidAt: true,
+                    razorpayOrderId: true,
+                    razorpayPaymentId: true,
+                    created_at: true,
+                    updated_at: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -233,10 +259,32 @@ router.get("/showBookedEvent", async (req: Request, res: Response) => {
         .status(404)
         .json({ success: false, message: "customer not found" });
     }
+    const result = user.map((customerUser) => ({
+      ...customerUser,
+      customers: customerUser.customers.map((customer) => ({
+        ...customer,
+        events: customer.events.map((event) => {
+          const totalPaid = event.payment.reduce(
+            (sum, payment) => sum + Number(payment.paymentAmount || 0),
+            0,
+          );
+          const totalAmount = Number(event.budget || 0);
+
+          return {
+            ...event,
+            payments: event.payment,
+            totalPaid,
+            totalAmount,
+            remainingAmount: Math.max(totalAmount - totalPaid, 0),
+          };
+        }),
+      })),
+    }));
+
     return res.status(200).json({
       success: true,
       message: "user fetched successfully",
-      result: user,
+      result,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: "Internal server Error" });

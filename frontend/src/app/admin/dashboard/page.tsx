@@ -17,22 +17,40 @@ import { Users, Calendar, CircleUser, IndianRupee } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 type BookingEvent = {
+  id?: string;
   _id?: string;
   eventName?: string;
   eventType?: string;
   eventDate?: string;
   bookingStatus?: string;
   progress?: number;
+  budget?: number;
   totalPaid?: number;
   totalAmount?: number | number[];
+  remainingAmount?: number;
+  payment?: PaymentDetail[];
+  payments?: PaymentDetail[];
+};
+
+type PaymentDetail = {
+  id?: string;
+  paymentAmount?: number;
+  paymentMethod?: string;
+  status?: string;
+  paidAt?: string;
 };
 
 type BookingCustomer = {
   events?: BookingEvent[];
 };
 
+type BookingUser = {
+  customers?: BookingCustomer[];
+};
+
 type BookingResponse = {
   customers?: BookingCustomer[];
+  result?: BookingUser[];
 };
 
 type EmployeeTask = {
@@ -71,6 +89,32 @@ const fetcher = async <T,>(url: string): Promise<T> => {
   return body as T;
 };
 
+const normalizeTaskStatus = (status?: string) =>
+  String(status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, "-");
+
+const toNumber = (value?: number | string | null) => {
+  const parsedValue = Number(value ?? 0);
+  return Number.isFinite(parsedValue) ? parsedValue : 0;
+};
+
+const getEventTotal = (event: BookingEvent) => {
+  if (Array.isArray(event.totalAmount)) {
+    return event.totalAmount.reduce((sum, amount) => sum + toNumber(amount), 0);
+  }
+
+  return toNumber(event.totalAmount ?? event.budget);
+};
+
+const formatStatus = (status?: string) => {
+  const value = String(status ?? "");
+  return value
+    ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+    : "N/A";
+};
+
 export default function AdminDashboardPage() {
   const { data } = useQuery<BookingResponse>({
     queryKey: ["showbookings"],
@@ -78,34 +122,22 @@ export default function AdminDashboardPage() {
       fetcher<BookingResponse>(`${API_ADMIN_BACKEND_URL}/showBookedEvent`),
   });
 
-  // console.log(
-  //   data?.result?.flatMap((user) =>
-  //     user.customers?.flatMap((eventsDetails) =>
-  //       eventsDetails?.events?.map((event) => event.eventName),
-  //     ),
-  //   ),
-  // );
-
-
-  const customers =
+  const bookingEvents =
     data?.result?.flatMap(
       (user) =>
         user.customers?.flatMap((customer) => customer.events ?? []) ?? [],
     ) ?? [];
 
-  const paidByCustomer = customers
-    .flatMap((customer) => customer.events ?? [])
-    .reduce((sum, eventDetail) => sum + (eventDetail.totalPaid ?? 0), 0);
+  const paidByCustomer = bookingEvents.reduce(
+    (sum, eventDetail) => sum + toNumber(eventDetail.totalPaid),
+    0,
+  );
 
   // Calculate total revenue across all events
-  const totalRevenue = customers
-    .flatMap((customer) => customer?.events || [])
-    .reduce((total, event) => {
-      const eventTotal = Array.isArray(event?.totalAmount)
-        ? event.totalAmount.reduce((sum, amount) => sum + (amount || 0), 0)
-        : event?.totalAmount || 0;
-      return total + eventTotal;
-    }, 0);
+  const totalRevenue = bookingEvents.reduce(
+    (total, event) => total + getEventTotal(event),
+    0,
+  );
 
   // remaining amount
   const remaining: number = totalRevenue - paidByCustomer;
@@ -115,8 +147,6 @@ export default function AdminDashboardPage() {
     queryFn: () =>
       fetcher<EmployeeResponse>(`${API_EMPLOYEE_BACKEND_URL}/findEmployee`),
   });
-
-  console.log(data1?.result)
 
   // normalize response safely
   const users: EmployeeUser[] = Array.isArray(data1?.users) ? data1.users : [];
@@ -137,11 +167,21 @@ export default function AdminDashboardPage() {
     };
   });
 
-  // console.log(users.map((user) => user.firstname));
-  const completed = details
-    .flatMap((detail) => detail?.tasks || [])
-    .filter((task) => task?.status === "in-progress").length;
-  // console.log(completed);
+  const allTasks = details.flatMap((detail) => detail?.tasks || []);
+  const taskCounts = allTasks.reduce(
+    (counts, task) => {
+      const status = normalizeTaskStatus(task?.status);
+
+      if (status === "pending") counts.pending += 1;
+      if (status === "in-progress" || status === "inprogress") {
+        counts.inProgress += 1;
+      }
+      if (status === "completed") counts.completed += 1;
+
+      return counts;
+    },
+    { pending: 0, inProgress: 0, completed: 0 },
+  );
 
   return (
     <SidebarProvider>
@@ -176,7 +216,8 @@ export default function AdminDashboardPage() {
                 <h3>Total Customers</h3>
               </div>
               <span>
-                {data?.result?.flatMap((users) => users.customers).length}
+                {data?.result?.flatMap((users) => users.customers ?? [])
+                  .length ?? 0}
               </span>
             </div>
             <div className="rounded-xl bg-[#fefdfe]  p-5">
@@ -184,13 +225,7 @@ export default function AdminDashboardPage() {
                 <Calendar className="h-4 w-4" />
                 <h3>Active Bookings</h3>
               </div>
-              <span>
-                {data?.result?.flatMap((users) =>
-                  users.customers?.map(
-                    (eventDetails) => eventDetails.events.length,
-                  ),
-                )}
-              </span>
+              <span>{bookingEvents.length}</span>
             </div>
             <div className="rounded-xl bg-[#fefdfe]  p-5">
               <div className="flex gap-1">
@@ -217,34 +252,15 @@ export default function AdminDashboardPage() {
                 <p>Overview of task status</p>
                 <div className="grid grid-cols-3 my-3">
                   <div className="flex flex-col">
-                    {/* <span>
-                      {
-                        details
-                          .flatMap((detail) => detail?.tasks || [])
-                          .filter((task) => task?.status === "pending").length
-                      }
-                    </span> */}
+                    <span>{taskCounts.pending}</span>
                     <span>pending</span>
                   </div>
                   <div className="flex flex-col">
-                    {/* <span>
-                      {
-                        details
-                          .flatMap((detail) => detail?.tasks || [])
-                          .filter((task) => task?.status === "in-progress")
-                          .length
-                      }
-                    </span> */}
+                    <span>{taskCounts.inProgress}</span>
                     <span>in progress</span>
                   </div>
                   <div className="flex flex-col">
-                    {/* <span>
-                      {
-                        details
-                          .flatMap((detail) => detail?.tasks || [])
-                          .filter((task) => task?.status === "completed").length
-                      }
-                    </span> */}
+                    <span>{taskCounts.completed}</span>
                     <span>completed</span>
                   </div>
                 </div>
@@ -259,21 +275,21 @@ export default function AdminDashboardPage() {
                     <p>Total Received</p>
                     <div className="flex">
                       <IndianRupee className="h-5 w-5 mt-1" />
-                      {/* {paidByCustomer} */}
+                      {paidByCustomer}
                     </div>
                   </div>
                   <div className="flex justify-between">
                     <p>Pending Amount</p>
                     <div className="flex">
                       <IndianRupee className="h-5 w-5 mt-1" />
-                      {/* {remaining} */}
+                      {remaining}
                     </div>
                   </div>
                   <div className="flex justify-between">
                     <p>Total Expected</p>
                     <div className="flex">
-                      {/* <IndianRupee className="h-5 w-5 mt-1" />
-                      {totalRevenue?.toLocaleString() || 0} */}
+                     <IndianRupee className="h-5 w-5 mt-1" />
+                      {totalRevenue?.toLocaleString() || 0}
                     </div>
                   </div>
                 </div>
@@ -311,18 +327,21 @@ export default function AdminDashboardPage() {
                         </td>
                         <td className="border-b  p-1">
                           <span className="bg-black text-white text-xs p-1 rounded-md">
-                            {event?.bookingStatus.toLowerCase()}
+                            {formatStatus(event?.bookingStatus)}
                           </span>
                         </td>
                         <td className="border-b p-1">
                           <span className="text-xs bg-black p-1 text-white rounded-md">
-                            {event?.progress !== 0 ? "in-progress" : "pending"}
+                            {event?.progress !== 0 ? "In-progress" : "Pending"}
                           </span>
                         </td>
                         <td className="border-b p-1">
                           <span className="flex">
                             <IndianRupee className="h-5 w-5 mt-1" />{" "}
-                            {event?.budget}
+                            {toNumber(event?.totalPaid).toLocaleString(
+                              "en-IN",
+                            )}{" "}
+                            / {getEventTotal(event).toLocaleString("en-IN")}
                           </span>
                         </td>
                       </tr>

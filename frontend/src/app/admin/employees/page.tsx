@@ -34,6 +34,12 @@ const fetcher = async (url) => {
   return body;
 };
 
+const normalizeTaskStatus = (status?: string) =>
+  String(status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, "-");
+
 export default function AdminThemePage() {
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
 
@@ -63,11 +69,14 @@ export default function AdminThemePage() {
     };
   });
 
-  // console.log(users.map((user) => user.firstname));
-  const completed = details
-    .flatMap((detail) => detail?.tasks || [])
-    .filter((task) => task?.status === "in-progress").length;
-  console.log(completed);
+  const allTasks = details.flatMap((detail) => detail?.tasks || []);
+  const activeTaskCount = allTasks.filter((task) => {
+    const status = normalizeTaskStatus(task?.status);
+    return status === "in-progress" || status === "inprogress";
+  }).length;
+  const completedTaskCount = allTasks.filter(
+    (task) => normalizeTaskStatus(task?.status) === "completed",
+  ).length;
 
   return (
     <SidebarProvider>
@@ -120,11 +129,7 @@ export default function AdminThemePage() {
                 <h3>Active Tasks</h3>
               </div>
               <span>
-                {
-                  details
-                    .flatMap((detail) => detail?.tasks || [])
-                    .filter((task) => task?.status === "in-progress").length
-                }
+                {activeTaskCount}
               </span>
             </div>
             <div className="rounded-xl bg-[#fefdfe] p-5">
@@ -132,11 +137,7 @@ export default function AdminThemePage() {
                 <h3>Completed Tasks</h3>
               </div>
               <span>
-                {
-                  details
-                    .flatMap((detail) => detail?.tasks || [])
-                    .filter((task) => task?.status === "completed").length
-                }
+                {completedTaskCount}
               </span>
             </div>
           </div>

@@ -22,23 +22,35 @@ const API_URL = import.meta.env.VITE_BACKEND_URL;
 const API_ADMIN_BACKEND_URL = import.meta.env.VITE_ADMIN_BACKEND_URL;
 
 type BookingStatus =
+  | "REQUESTED"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "PENDING"
+  | "COMPLETED"
   | "requested"
   | "accepted"
   | "rejected"
+  | "pending"
   | "in-progress"
   | "completed";
 
 type EventBooking = {
+  id?: string;
   _id?: string;
   eventName?: string;
   eventType?: string;
+  eventTheme?: string;
   theme?: string;
   eventDate?: string;
+  eventVenue?: string;
   venue?: string;
   bookingStatus?: string;
   paymentStatus?: string;
   guestCount?: number;
-  totalAmount?: number;
+  budget?: number;
+  totalAmount?: number | number[];
+  totalPaid?: number;
+  remainingAmount?: number;
   progress?: number;
 };
 
@@ -57,6 +69,29 @@ type ShowBookingsResponse = {
 type UpdateEventStatusPayload = {
   id: string;
   bookingStatus: BookingStatus;
+};
+
+const toNumber = (value?: number | string | null) => {
+  const parsedValue = Number(value ?? 0);
+  return Number.isFinite(parsedValue) ? parsedValue : 0;
+};
+
+const getBookingTotal = (booking: EventBooking) => {
+  if (Array.isArray(booking.totalAmount)) {
+    return booking.totalAmount.reduce(
+      (sum, amount) => sum + toNumber(amount),
+      0,
+    );
+  }
+
+  return toNumber(booking.totalAmount ?? booking.budget);
+};
+
+const formatStatus = (status?: string) => {
+  const value = String(status ?? "");
+  return value
+    ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+    : "N/A";
 };
 
 const updateEventBookStatus = async (
@@ -117,26 +152,27 @@ export default function AdminBookingsPage() {
     },
   });
 
-  const allBookings = data?.result?.flatMap((user: BookingUser) =>
-    user.customers?.flatMap((customer) => customer.events ?? []) ?? [],
-  ) ?? [];
+  const allBookings =
+    data?.result?.flatMap(
+      (user: BookingUser) =>
+        user.customers?.flatMap((customer) => customer.events ?? []) ?? [],
+    ) ?? [];
 
   const filteredBookings = allBookings.filter((booking: EventBooking) => {
     const value = search.toLowerCase();
 
-  
-
     return (
       booking.eventName?.toLowerCase().includes(value) ||
       booking.eventType?.toLowerCase().includes(value) ||
+      booking.eventTheme?.toLowerCase().includes(value) ||
       booking.theme?.toLowerCase().includes(value) ||
+      booking.eventVenue?.toLowerCase().includes(value) ||
       booking.venue?.toLowerCase().includes(value) ||
       booking.bookingStatus?.toLowerCase().includes(value) ||
       booking.paymentStatus?.toLowerCase().includes(value) ||
       booking.guestCount?.toString().includes(value)
     );
   });
-
 
   return (
     <SidebarProvider>
@@ -261,92 +297,110 @@ export default function AdminBookingsPage() {
                   )}
 
                   {!isLoading &&
-                    filteredBookings.map((booking) => (
-                      <tr key={booking._id} className="border-b border-black">
-                        <td className="py-2 px-2">{booking.eventName}</td>
-                        <td className="py-2 px-2">{booking.eventType}</td>
-                        <td className="py-2 px-2">{booking.eventTheme}</td>
-                        <td className="py-2 px-2">
-                          {booking.eventDate
-                            ? new Date(booking.eventDate).toLocaleDateString()
-                            : "-"}
-                        </td>
-                        <td className="py-2 px-2">{booking.eventVenue}</td>
-                        <td className="py-2 px-2">{booking.guestCount}</td>
-                        <td className="py-2 px-2">
-                          <span className="flex">
-                            <IndianRupee className="h-3 w-3 mt-1" /> {booking.budget ?? 0}
-                          </span>
-                        </td>
-                        <td className="py-2 px-2">
-                          <span className="bg-gray-800 text-white text-xs px-2 py-1 rounded">
-                            {booking.paymentStatus.toLowerCase()}
-                          </span>
-                        </td>
-                        <td className="py-2 px-2">
-                          <span className="bg-gray-600 text-white text-xs px-2 py-1 rounded">
-                            {booking.bookingStatus.toLowerCase()}
-                          </span>
-                        </td>
-                        <td className="py-2 px-2 font-medium">
-                          {booking.progress} %
-                        </td>
+                    filteredBookings.map((booking) => {
+                      const paidAmount = toNumber(booking.totalPaid);
+                      const totalAmount = getBookingTotal(booking);
+                      const eventId = booking.id ?? booking._id ?? "";
 
-                        <td className="py-2 px-2 font-medium flex flex-col">
-                          <Menu>
-                            <Menu.Target>
-                              <ActionIcon variant="transparent">
-                                <EllipsisVertical size={18} />
-                              </ActionIcon>
-                            </Menu.Target>
+                      return (
+                        <tr key={eventId} className="border-b border-black">
+                          <td className="py-2 px-2">{booking.eventName}</td>
+                          <td className="py-2 px-2">{booking.eventType}</td>
+                          <td className="py-2 px-2">
+                            {booking.eventTheme ?? booking.theme}
+                          </td>
+                          <td className="py-2 px-2">
+                            {booking.eventDate
+                              ? new Date(booking.eventDate).toLocaleDateString()
+                              : "-"}
+                          </td>
+                          <td className="py-2 px-2">
+                            {booking.eventVenue ?? booking.venue}
+                          </td>
+                          <td className="py-2 px-2">{booking.guestCount}</td>
+                          <td className="py-2 px-2">
+                            <span className="flex">
+                              <IndianRupee className="h-3 w-3 mt-1" />{" "}
+                              {totalAmount.toLocaleString("en-IN")}
+                            </span>
+                          </td>
+                          <td className="py-2 px-2">
+                            <div className="flex flex-col gap-1">
+                              <span className="flex">
+                                <IndianRupee className="h-3 w-3 mt-1" />{" "}
+                                {paidAmount.toLocaleString("en-IN")} /{" "}
+                                {totalAmount.toLocaleString("en-IN")}
+                              </span>
+                              <span className="w-fit bg-gray-800 text-white text-xs px-2 py-1 rounded">
+                                {formatStatus(booking.paymentStatus)}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2 px-2">
+                            <span className="bg-gray-600 text-white text-xs px-2 py-1 rounded">
+                              {formatStatus(booking.bookingStatus)}
+                            </span>
+                          </td>
+                          <td className="py-2 px-2 font-medium">
+                            {booking.progress} %
+                          </td>
 
-                            <Menu.Dropdown>
-                              <Menu.Item
-                                onClick={() =>
-                                  eventBookActionMutation.mutate({
-                                    id: booking.id,
-                                    bookingStatus: "REJECTED",
-                                  })
-                                }
-                              >
-                                Reject
-                              </Menu.Item>
+                          <td className="py-2 px-2 font-medium flex flex-col">
+                            <Menu>
+                              <Menu.Target>
+                                <ActionIcon variant="transparent">
+                                  <EllipsisVertical size={18} />
+                                </ActionIcon>
+                              </Menu.Target>
 
-                              <Menu.Item
-                                onClick={() =>
-                                  eventBookActionMutation.mutate({
-                                    id: booking.id,
-                                    bookingStatus: "ACCEPTED",
-                                  })
-                                }
-                              >
-                                Accept
-                              </Menu.Item>
+                              <Menu.Dropdown>
+                                <Menu.Item
+                                  onClick={() =>
+                                    eventBookActionMutation.mutate({
+                                      id: eventId,
+                                      bookingStatus: "REJECTED",
+                                    })
+                                  }
+                                >
+                                  Reject
+                                </Menu.Item>
 
-                              <Menu.Item
-                                onClick={() =>
-                                  eventBookActionMutation.mutate({
-                                    id: booking.id,
-                                    bookingStatus: "COMPLETED",
-                                  })
-                                }
-                              >
-                                Completed
-                              </Menu.Item>
-                            </Menu.Dropdown>
-                          </Menu>
-                        </td>
-                      </tr>
-                    ))}
+                                <Menu.Item
+                                  onClick={() =>
+                                    eventBookActionMutation.mutate({
+                                      id: eventId,
+                                      bookingStatus: "ACCEPTED",
+                                    })
+                                  }
+                                >
+                                  Accept
+                                </Menu.Item>
 
-                   {/* NO RESULTS */}
+                                <Menu.Item
+                                  onClick={() =>
+                                    eventBookActionMutation.mutate({
+                                      id: eventId,
+                                      bookingStatus: "COMPLETED",
+                                    })
+                                  }
+                                >
+                                  Completed
+                                </Menu.Item>
+                              </Menu.Dropdown>
+                            </Menu>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                  {/* NO RESULTS */}
                   {!isLoading && filteredBookings.length === 0 && (
                     <tr>
                       <td colSpan={11} className="text-center py-4">
                         No bookings found
                       </td>
                     </tr>
-                  )} 
+                  )}
                 </tbody>
               </table>
             </div>
