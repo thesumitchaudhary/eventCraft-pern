@@ -232,8 +232,66 @@ router.get("/findEmployee", async (req: Request, res: Response) => {
   }
 });
 
-router.get("myTask", (req: Request, res: Response) => {
+router.get("/myTask", authMiddleware, async (req: Request, res: Response) => {
   try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const employee = await prisma.employee.findFirst({
+      where: { userId },
+      include: {
+        tasks: {
+          include: {
+            event: true,
+          },
+          orderBy: {
+            created_at: "desc",
+          },
+        },
+      },
+    });
+
+    if (!employee) {
+      return res
+        .status(404)
+        .json({ success: false, message: "employee not found" });
+    }
+
+    const priorityLabel: Record<string, string> = {
+      LOW: "Low",
+      MEDIUM: "Medium",
+      HIGH: "High",
+    };
+
+    const statusLabel: Record<string, string> = {
+      PENDING: "pending",
+      INPROGRESS: "in-progress",
+      COMPLETED: "completed",
+    };
+
+    const tasks = employee.tasks.map((task) => ({
+      ...task,
+      _id: task.id,
+      createdAt: task.created_at,
+      selectDate: task.assignDate,
+      priority: priorityLabel[task.priority] ?? task.priority,
+      status: statusLabel[task.status] ?? task.status,
+      assignTo: task.assignedToEmpId,
+      employeeId: task.assignedToEmpId,
+      eventId: task.event,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      message: "employee tasks fetched successfully",
+      employee: {
+        ...employee,
+        tasks,
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
