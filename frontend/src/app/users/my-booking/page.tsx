@@ -25,16 +25,19 @@ const API_URL = import.meta.env.VITE_BACKEND_URL;
 // console.log(`${API_URL}/index/createEvent`)
 
 interface Booking {
-  id: string;
+  id?: string;
+  _id?: string;
   eventName: string;
   eventType?: string;
   eventTheme?: string;
+  theme?: string;
   eventDate: string;
-  eventVenue: string;
+  eventVenue?: string;
+  venue?: string;
   guestCount: number;
   budget: number;
-  totalPaid: number;
   totalAmount?: number;
+  totalPaid: number;
   paymentStatus?: string;
   bookingStatus?: string;
   progress: number;
@@ -303,7 +306,7 @@ function EventRegistrationModal({
   const floatingSelectTheme = focusedSelectTheme || selectTheme?.length > 0;
 
   const {
-    data: themesData = [],
+    data: themesData =[],
     isPending,
     isError,
     error,
@@ -312,6 +315,8 @@ function EventRegistrationModal({
     enabled: Boolean(ADMIN_API_URL),
     queryFn: () => fetchThemes(`${ADMIN_API_URL}/getAllEventTheme`),
   });
+
+  console.log(`${ADMIN_API_URL}/getAllEventTheme`)
 
 
   const getEventType = (item: EventTheme) =>
@@ -336,6 +341,8 @@ function EventRegistrationModal({
     .map((item) => String(item?.themeName ?? item?.theme ?? "").trim())
     .filter(Boolean)
     .map((theme) => ({ value: theme, label: theme }));
+
+    console.log(eventTypeOptions)
 
   const createEventMutation = useMutation({
     mutationFn: () => {
@@ -436,7 +443,7 @@ function EventRegistrationModal({
             createEventMutation.mutate();
           }}
         >
-      const normalizedRemainingAmount = Math.max(remainingAmount, 0);
+      {/* const normalizedRemainingAmount = Math.max(remainingAmount, 0); */}
           <div className="grid gap-4 md:grid-cols-2">
             <TextInput
               label="Event Name"
@@ -634,14 +641,22 @@ export default function Page() {
     setFocusedPaymentAmount(false);
   };
 
+  const getBookingId = (booking?: Booking | null) =>
+    booking?.id ?? booking?._id ?? "";
+
+  const getBookingTotal = (booking?: Booking | null) =>
+    booking?.totalAmount ?? booking?.budget ?? 0;
+
   const paymentMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedBooking?.id) throw new Error("bookingId is required");
+      const bookingId = getBookingId(selectedBooking);
+
+      if (!bookingId) throw new Error("bookingId is required");
       if (!paymentAmount) throw new Error("paymentAmount is required");
 
       const paymentAmountNumber = Number(paymentAmount);
       const remainingAmount =
-        (selectedBooking?.budget ?? 0) - (selectedBooking?.totalPaid ?? 0);
+        getBookingTotal(selectedBooking) - (selectedBooking?.totalPaid ?? 0);
 
       if (Number.isNaN(paymentAmountNumber) || paymentAmountNumber <= 0) {
         throw new Error("Payment amount must be a valid positive number");
@@ -656,7 +671,7 @@ export default function Page() {
       }
 
       const orderResponse = await createRazorpayOrder({
-        bookingId: selectedBooking.id,
+        bookingId,
         paymentAmount: paymentAmountNumber,
       });
 
@@ -678,7 +693,7 @@ export default function Page() {
           handler: async (response) => {
             try {
               await verifyRazorpayPayment({
-                bookingId: selectedBooking.id,
+                bookingId,
                 paymentAmount: paymentAmountNumber,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
@@ -723,7 +738,7 @@ export default function Page() {
   // console.log(data?.events?.map((event)=> event.eventName))
 
   const remainingAmount =
-    (selectedBooking?.budget ?? 0) - (selectedBooking?.totalPaid ?? 0);
+    getBookingTotal(selectedBooking) - (selectedBooking?.totalPaid ?? 0);
   const normalizedRemainingAmount = Math.max(remainingAmount, 0);
 
   const handleOpenBookingModal = () => {
@@ -776,13 +791,15 @@ export default function Page() {
           <div className="left-4 p-2 my-4 rounded-xl max-w-250 flex flex-col gap-10">
             {data?.events?.map((booking) => (
               <div
-                key={booking.id}
+                key={getBookingId(booking) || booking.eventName}
                 className="mb-4 bg-muted/50 p-3 rounded-xl"
               >
                 <div className="flex justify-between">
                   <div>
                     <h2 className="font-bold text-xl">{booking.eventName}</h2>
-                    <p>{booking.eventType} - {booking.eventTheme}</p>
+                    <p>
+                      {booking.eventType ?? booking.theme} - {booking.eventTheme ?? booking.theme}
+                    </p>
                   </div>
                   <div className="flex gap-3 mt-4">
                     <span className=" bg-black max-h-max max-w-max px-3 text-xs rounded-md text-white">
@@ -800,7 +817,7 @@ export default function Page() {
                   </div>
                   <div>
                     <span>Venue</span>
-                    <h3>{booking.eventVenue}</h3>
+                    <h3>{booking.eventVenue ?? booking.venue ?? "N/A"}</h3>
                   </div>
                 </div>
                 <div className="grid grid-cols-4 my-3">
@@ -814,7 +831,7 @@ export default function Page() {
                       <span>
                         <IndianRupee className="h-4 w-5 mt-1" />
                       </span>
-                      <span>{booking.budget}</span>
+                      <span>{getBookingTotal(booking)}</span>
                     </p>
                   </div>
                 </div>
@@ -839,7 +856,7 @@ export default function Page() {
                         <IndianRupee className="h-4 w-5 mt-1" />
                       </span>
                       <span>
-                        {booking.totalPaid} / {booking.budget}
+                        {booking.totalPaid} / {getBookingTotal(booking)}
                       </span>
                     </span>
                   </div>
@@ -847,9 +864,14 @@ export default function Page() {
                   <button
                     type="button"
                     onClick={() => handleOpenPaymentModal(booking)}
+                    disabled={Math.max(getBookingTotal(booking) - (booking.totalPaid ?? 0), 0) <= 0}
                     className="bg-black rounded-xl p-2"
                   >
-                    <span className="text-white">Make Payment</span>
+                    <span className="text-white">
+                      {Math.max(getBookingTotal(booking) - (booking.totalPaid ?? 0), 0) <= 0
+                        ? "Paid"
+                        : "Make Payment"}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -886,7 +908,7 @@ export default function Page() {
                     Total Amount:
                     <div className="flex">
                       <IndianRupee className="h-3 w-5 mt-1" />
-                      {selectedBooking?.totalAmount ?? 0}
+                      {getBookingTotal(selectedBooking)}
                     </div>
                   </div>
                   <div className="mb-2 text-sm text-gray-600">
@@ -899,7 +921,7 @@ export default function Page() {
                   <div className="mb-2 text-sm text-gray-600">
                     Remaining:
                     <div className="flex">
-                      <IndianRupee className="h-3 w-5 mt-1" /> {remainingAmount}
+                      <IndianRupee className="h-3 w-5 mt-1" /> {Math.max(remainingAmount, 0)}
                     </div>
                   </div>
                 </div>

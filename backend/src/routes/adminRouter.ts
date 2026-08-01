@@ -4,7 +4,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { prisma } from "../libs/prisma.ts";
 import authMiddleware from "../middleware/authMiddleware.ts";
-import { BookingStatus } from "../generated/prisma/enums.ts";
+import { Priority } from "../generated/prisma/enums.ts";
 
 const router = express.Router();
 
@@ -83,7 +83,7 @@ router.get("/logout", (req: Request, res: Response) => {
   }
 });
 
-router.get("/me", authMiddleware,async (req: Request, res: Response) => {
+router.get("/me", authMiddleware, async (req: Request, res: Response) => {
   try {
     const { user } = req as AuthedRequest;
     const userId = user?.id;
@@ -243,6 +243,81 @@ router.get("/showBookedEvent", async (req: Request, res: Response) => {
   }
 });
 
+router.post("/createTask", async (req: Request, res: Response) => {
+  try {
+    const {
+      eventId,
+      taskTitle,
+      discription,
+      taskDescription,
+      assignedToEmpId,
+      assignTo,
+      priority,
+      dueDate,
+      selectDate,
+    } = req.body;
+    const description = discription ?? taskDescription;
+    const employeeId = assignedToEmpId ?? assignTo;
+    const taskDueDate = dueDate ?? selectDate;
+
+    if (
+      !eventId ||
+      !taskTitle ||
+      !description ||
+      !employeeId ||
+      !priority ||
+      !taskDueDate
+    ) {
+      return res
+        .status(400)
+        .json({ success: false, message: "hey all field is required" });
+    }
+
+    const parsedDueDate = new Date(taskDueDate);
+
+    if (Number.isNaN(parsedDueDate.getTime())) {
+      return res
+        .status(400)
+        .json({ success: false, message: "dueDate must be a valid date" });
+    }
+
+    const normalizedPriority = String(priority).toUpperCase() as Priority;
+    const validPriorities: Priority[] = [
+      Priority.LOW,
+      Priority.MEDIUM,
+      Priority.HIGH,
+    ];
+
+    if (!validPriorities.includes(normalizedPriority)) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "priority must be Low, Medium, or High",
+        });
+    }
+
+    const assignTask = await prisma.task.create({
+      data: {
+        eventId,
+        taskTitle,
+        taskDescription: description,
+        assignedToEmpId: employeeId,
+        priority: normalizedPriority,
+        assignDate: parsedDueDate,
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "hey task is assigned to employee",
+      data: assignTask,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Internal server Error" });
+  }
+});
+
 router.put(
   "/updateEventTheme/:id",
   authMiddleware,
@@ -306,13 +381,11 @@ router.put("/updateStatus/:id", async (req: Request, res: Response) => {
       },
     });
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "event status updated successfully",
-        result: true,
-      });
+    res.status(200).json({
+      success: true,
+      message: "event status updated successfully",
+      result: true,
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: "Internal server Error" });
   }

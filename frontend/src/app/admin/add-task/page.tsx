@@ -70,10 +70,12 @@ export default function AdminThemePage() {
         "-",
       priority: task?.priority || "-",
       status: task?.status || "-",
-      dueDate: task?.selectDate,
-      createdAt: task?.createdAt,
+      dueDate: task?.assignDate,
+      createdAt: task?.created_at,
     })),
   );
+
+  console.log(taskRows)
 
   const formatDate = (value) => {
     const d = value ? new Date(value) : null;
@@ -181,7 +183,7 @@ export default function AdminThemePage() {
 
                       {/* Dates */}
                       <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-                        {formatDate(row.dueDate)}
+                         {formatDate(row.dueDate)} {/* {row.assignDate} */}
                       </td>
 
                       <td className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap">

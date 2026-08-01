@@ -7,6 +7,7 @@ import jwt from "jsonwebtoken";
 import { EmployeeScalarFieldEnum } from "../generated/prisma/internal/prismaNamespace";
 import { dot } from "node:test/reporters";
 import { request } from "node:http";
+import authMiddleware from "../middleware/authMiddleware.ts";
 
 dotenv.config();
 const router = express.Router();
@@ -17,9 +18,24 @@ router.get("/", (req: Request, res: Response) => {
 
 router.post("/create", async (req: Request, res: Response) => {
   try {
-    const { firstname, lastname, email, password, confirmPassword } = req.body;
+    const {
+      firstname,
+      lastname,
+      email,
+      password,
+      confirmPassword,
+      designation,
+      phone,
+    } = req.body;
 
-    if (!firstname || !lastname || !email || !password || !confirmPassword) {
+    if (
+      !firstname ||
+      !lastname ||
+      !email ||
+      !password ||
+      !confirmPassword ||
+      !designation
+    ) {
       return res
         .status(401)
         .json({ success: false, message: "all field is mandatory" });
@@ -42,31 +58,41 @@ router.post("/create", async (req: Request, res: Response) => {
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+    const parsedPhone = Number(phone ?? 0);
 
-    const response = await prisma.user.create({
-      data: {
-        firstname,
-        lastname,
-        email,
-        password: hashedPassword,
-        verified_at: new Date(),
-        role: "EMPLOYEE",
-      },
+    const response = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          firstname,
+          lastname,
+          email,
+          password: hashedPassword,
+          verified_at: new Date(),
+          role: "EMPLOYEE",
+        },
+      });
+
+      const employee = await tx.employee.create({
+        data: {
+          userId: user.id,
+          phone: Number.isFinite(parsedPhone) ? parsedPhone : 0,
+          designation,
+        },
+      });
+
+      return { user, employee };
     });
 
-    const token = jwt.sign(
-      {
-        firstname: response.firstname,
-        lastname: response.lastname,
-        email: response.email,
-      },
-      process.env.JWT_SECRET,
-    );
+    return res.status(201).json({
+      success: true,
+      message: "employee created successfully",
+      result: response,
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
       message: "Internal Server Error",
-      result: error.message,
+      result: error instanceof Error ? error.message : "Unknown error",
     });
   }
 });
@@ -76,7 +102,7 @@ router.post("/login", async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      res.status(401).json({
+      return res.status(401).json({
         success: false,
         message: "hey email and password is manddatory",
       });
@@ -89,15 +115,23 @@ router.post("/login", async (req: Request, res: Response) => {
     });
 
     if (!existingEmployee) {
-      res
+      return res
         .status(401)
         .json({ success: false, message: "hey employee is not exist" });
     }
 
     const isMatch = await bcrypt.compare(password, existingEmployee.password);
 
-    if (isMatch) {
-      res.status(401).json({ success: false, message: "Invalid Credential" });
+    if (!isMatch) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid Credential" });
+    }
+
+    if (!process.env.JWT_SECRET) {
+      return res
+        .status(500)
+        .json({ success: false, message: "JWT secret is not configured" });
     }
 
     const token = jwt.sign(
@@ -123,14 +157,18 @@ router.post("/login", async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: "Internal server Error",
-      error: error.message,
+      error: error instanceof Error ? error.message : "Unknown error",
     });
   }
 });
 
-router.get("/me", async (req: Request, res: Response) => {
+router.get("/me", authMiddleware, async (req: Request, res: Response) => {
   try {
     const id = req.user?.id;
+
+    if (!id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
 
     const employee = await prisma.user.findFirst({
       where: {
@@ -157,9 +195,10 @@ router.get("/me", async (req: Request, res: Response) => {
 
 router.get("/findEmployee", async (req: Request, res: Response) => {
   try {
-    const employee = await prisma.user.findMany({
-      where: {
-        role: "EMPLOYEE",
+    const employee = await prisma.employee.findMany({
+      include: {
+        user: true,
+        tasks: true,
       },
     });
 
@@ -169,13 +208,32 @@ router.get("/findEmployee", async (req: Request, res: Response) => {
         .json({ success: false, message: "employee not found" });
     }
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "employee fetched successfully",
-        result: employee,
-      });
+    const result = employee.map(({ user, ...employeeDetail }) => ({
+      ...user,
+      id: employeeDetail.id,
+      _id: employeeDetail.id,
+      userId: employeeDetail.userId,
+      phone: employeeDetail.phone,
+      designation: employeeDetail.designation,
+      joiningDate: employeeDetail.joiningDate,
+      tasks: employeeDetail.tasks,
+      employee: employeeDetail,
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: "employee fetched successfully",
+      result,
+      users: result,
+      details: employee,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+router.get("myTask", (req: Request, res: Response) => {
+  try {
   } catch (error) {
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }

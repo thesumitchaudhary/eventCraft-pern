@@ -124,6 +124,8 @@ export default function AdminBookingsPage() {
   const filteredBookings = allBookings.filter((booking: EventBooking) => {
     const value = search.toLowerCase();
 
+  
+
     return (
       booking.eventName?.toLowerCase().includes(value) ||
       booking.eventType?.toLowerCase().includes(value) ||
@@ -134,6 +136,7 @@ export default function AdminBookingsPage() {
       booking.guestCount?.toString().includes(value)
     );
   });
+
 
   return (
     <SidebarProvider>
@@ -286,7 +289,7 @@ export default function AdminBookingsPage() {
                           </span>
                         </td>
                         <td className="py-2 px-2 font-medium">
-                          {booking.progress ?? 0}%
+                          {booking.progress} %
                         </td>
 
                         <td className="py-2 px-2 font-medium flex flex-col">

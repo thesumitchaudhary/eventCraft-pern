@@ -10,6 +10,9 @@ type BookedEvent = {
   id?: string;
   eventName?: string;
   eventType?: string;
+  eventTheme?: string;
+  eventVenue?: string;
+  budget?: number;
   theme?: string;
   eventDate?: string;
   venue?: string;
@@ -17,19 +20,25 @@ type BookedEvent = {
   totalAmount?: number;
 };
 
+type BookingCustomer = {
+  events?: BookedEvent[];
+};
+
 type ShowBookedEventResponse = {
   result?: {
-    customers?: BookedEvent[];
+    customers?: BookingCustomer[];
   }[];
 };
 
 type EmployeeUser = {
+  id?: string;
   _id: string;
   firstname?: string;
   lastname?: string;
 };
 
 type EmployeeResponse = {
+  result?: EmployeeUser[];
   users?: EmployeeUser[];
 };
 
@@ -48,6 +57,18 @@ type AssignTaskModalProps = {
   open: boolean;
   closeTaskModal: () => void;
 };
+
+const getBookedEventId = (event?: BookedEvent | null) =>
+  String(event?.id ?? event?._id ?? "").trim();
+
+const getEventTheme = (event?: BookedEvent | null) =>
+  event?.eventTheme ?? event?.theme ?? "";
+
+const getEventVenue = (event?: BookedEvent | null) =>
+  event?.eventVenue ?? event?.venue ?? "";
+
+const getEmployeeId = (employee?: EmployeeUser | null) =>
+  String(employee?.id ?? employee?._id ?? "").trim();
 
 const fetcher = async <T,>(url: string): Promise<T> => {
   const res = await fetch(url, { credentials: "include" });
@@ -69,6 +90,8 @@ const fetcher = async <T,>(url: string): Promise<T> => {
 
   return body as T;
 };
+
+// console.log(`${API_BASE}/admin/createTask`)
 
 const assignTask = async (payload: AssignTaskPayload) => {
   const res = await fetch(`${API_BASE}/admin/createTask`, {
@@ -112,26 +135,30 @@ const AssignTaskModal = ({ open, closeTaskModal }: AssignTaskModalProps) => {
     enabled: open,
   });
 
-  // console.log(empData)
-
-  const bookedEvents = data?.result?.flatMap((users) => users?.customers ?? []) ?? [];
+  const bookedEvents =
+    data?.result?.flatMap((user) =>
+      user.customers?.flatMap((customer) => customer.events ?? []) ?? [],
+    ) ?? [];
 
   const eventOptions = bookedEvents.map((eventData) => ({
-    value: eventData.id || eventData.id || "",
-    label: eventData.eventName || "Untitled event",
+    value: getBookedEventId(eventData),
+    label: `${eventData.eventName || "Untitled event"} - ID: ${getBookedEventId(eventData)}`,
   })).filter((option) => option.value);
 
+  const employees = empData?.result ?? empData?.users ?? [];
+
   const employeeOptions =
-    empData?.users
+    employees
       ?.map((employee) => ({
-        value: String(employee?.id ?? ""),
+        value: getEmployeeId(employee),
         label: `${employee?.firstname ?? ""} ${employee?.lastname ?? ""}`.trim() ||
           "Unnamed employee",
       }))
       .filter((option) => option.value) ?? [];
 
   const selectedEvent =
-    bookedEvents.find((eventData) => eventData?.id === selectedEventId) ?? null;
+    bookedEvents.find((eventData) => getBookedEventId(eventData) === selectedEventId) ?? null;
+
 
   const taskMutation = useMutation({
     mutationFn: () => {
@@ -228,10 +255,12 @@ const AssignTaskModal = ({ open, closeTaskModal }: AssignTaskModalProps) => {
               <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                 <span className="text-gray-600">Name:</span>
                 <span className="font-medium">{selectedEvent.eventName || "-"}</span>
+                <span className="text-gray-600">Event ID:</span>
+                <span className="font-medium">{getBookedEventId(selectedEvent) || "-"}</span>
                 <span className="text-gray-600">Type:</span>
                 <span className="font-medium">{selectedEvent.eventType || "-"}</span>
                 <span className="text-gray-600">Theme:</span>
-                <span className="font-medium">{selectedEvent.theme || "-"}</span>
+                <span className="font-medium">{getEventTheme(selectedEvent) || "-"}</span>
                 <span className="text-gray-600">Date:</span>
                 <span className="font-medium">
                   {selectedEvent.eventDate
@@ -239,7 +268,7 @@ const AssignTaskModal = ({ open, closeTaskModal }: AssignTaskModalProps) => {
                     : "-"}
                 </span>
                 <span className="text-gray-600">Venue:</span>
-                <span className="font-medium">{selectedEvent.venue || "-"}</span>
+                <span className="font-medium">{getEventVenue(selectedEvent) || "-"}</span>
                 <span className="text-gray-600">Guests:</span>
                 <span className="font-medium">{selectedEvent.guestCount ?? "-"}</span>
               </div>

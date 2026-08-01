@@ -19,7 +19,22 @@ import { useQuery } from "@tanstack/react-query";
 
 const API_INDEX_BASE_URL = import.meta.env.VITE_INDEX_BACKEND_URL;
 
-const fetcher = async (url: string) => {
+type Booking = {
+  id?: string;
+  _id?: string;
+  eventName?: string;
+  eventDate?: string;
+  eventTheme?: string;
+  bookingStatus?: string;
+  progress?: number;
+  totalPaid?: number;
+};
+
+type MyBookingsResponse = {
+  events?: Booking[];
+};
+
+const fetcher = async <T,>(url: string): Promise<T> => {
   const res = await fetch(url, {
     credentials: "include",
   });
@@ -30,16 +45,21 @@ const fetcher = async (url: string) => {
     throw new Error(body?.message || "Request failed");
   }
 
-  return body;
+  return body as T;
 };
 
 export default function Page() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<MyBookingsResponse>({
     queryKey: ["my-bookings"],
-    queryFn: async () => await fetcher(`${API_INDEX_BASE_URL}/my-booking`),
+    queryFn: async () =>
+      await fetcher<MyBookingsResponse>(`${API_INDEX_BASE_URL}/my-booking`),
   });
 
-  console.log(data?.events?.map((details) => details.totalPaid));
+  const bookings = data?.events ?? [];
+  const totalPaidByCustomer = bookings.reduce(
+    (total, event) => total + Number(event.totalPaid ?? 0),
+    0,
+  );
 
   return (
     <SidebarProvider>
@@ -69,13 +89,13 @@ export default function Page() {
           <div className="grid auto-rows-min gap-4 md:grid-cols-3">
             <div className="rounded-xl bg-muted/50 p-10">
               <h3>Total Bookings</h3>
-              <span>{data?.events.length}</span>
+              <span>{bookings.length}</span>
             </div>
             <div className="rounded-xl bg-muted/50 p-10">
               <h3>Upcoming Events</h3>
               <span>
                 {" "}
-                {data?.events.length}
+                {bookings.length}
                 {/* {
                   data?.events.filter(
                     (event) => event.bookingStatus == "accepted",
@@ -87,7 +107,7 @@ export default function Page() {
               <h3>Total Spent</h3>
               <span className="flex gap-1">
                 <IndianRupee className="h-5 w-5 mt-1" />{" "}
-                {data?.events?.map((details) => details.totalPaid)}
+                {totalPaidByCustomer.toLocaleString("en-IN")}
               </span>
             </div>
           </div>
@@ -111,16 +131,23 @@ export default function Page() {
               <tbody>
                 {isLoading && (
                   <tr>
-                    <td colSpan={5} className="text-center py-4">
+                    <td colSpan={6} className="text-center py-4">
                       Loading...
                     </td>
                   </tr>
                 )}
 
-                {data?.events?.map((booking) => (
-                  <tr key={booking._id} className="border-b border-black">
+                {bookings.map((booking) => (
+                  <tr
+                    key={booking.id ?? booking._id ?? booking.eventName}
+                    className="border-b border-black"
+                  >
                     <td className="py-2">{booking.eventName}</td>
-                    <td>{new Date(booking.eventDate).toLocaleDateString()}</td>
+                    <td>
+                      {booking.eventDate
+                        ? new Date(booking.eventDate).toLocaleDateString()
+                        : "N/A"}
+                    </td>
                     <td>
                       <span className="text-md"> {booking.eventTheme} </span>
                     </td>
@@ -128,7 +155,7 @@ export default function Page() {
                       {" "}
                       <span className="text-xs font-semibold text-white bg-gray-600 p-1 rounded-md">
                         {" "}
-                        {booking.bookingStatus.toLowerCase()}
+                        {booking.bookingStatus?.toLowerCase() ?? "pending"}
                       </span>
                     </td>
                     <td>
@@ -136,7 +163,7 @@ export default function Page() {
                         {booking.progress !== 0 ? "in-progress" : "pending"}
                       </span>
                     </td>
-                    <td>{/* {booking.progress}  */} 10%</td>
+                    <td>{booking.progress ?? 0}%</td>
                   </tr>
                 ))}
               </tbody>

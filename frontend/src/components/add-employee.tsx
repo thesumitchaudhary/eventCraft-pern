@@ -18,6 +18,7 @@ type EmployeePayload = {
   lastname: string;
   email: string;
   password: string;
+  confirmPassword: string;
   designation: string;
 };
 

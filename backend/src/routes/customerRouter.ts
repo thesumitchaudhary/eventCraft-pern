@@ -62,6 +62,7 @@ router.post("/createUser", async (req: Request, res: Response) => {
 
     let token = jwt.sign(
       {
+        id: response.id,
         firstname: response.firstname,
         lastname: response.lastname,
         email: response.email,
@@ -204,11 +205,11 @@ router.post("/login", async (req: Request, res: Response) => {
 
 router.get("/me", authMiddleware, async (req: Request, res: Response) => {
   try {
-    const id = req.user.id;
+    const userId = req.user?.id;
 
     const customer = await prisma.user.findUnique({
       where: {
-        id,
+        id: userId,
       },
     });
 

@@ -191,6 +191,7 @@ export default function Page() {
   const handleOpenPaymentModal = (booking: Booking) => {
     setSelectedBooking(booking);
     setPaymentAmount("");
+    paymentMutation.reset();
     setIsPaymentModalOpen(true);
   };
 
@@ -199,6 +200,7 @@ export default function Page() {
     setSelectedBooking(null);
     setPaymentAmount("");
     setFocusedPaymentAmount(false);
+    paymentMutation.reset();
   };
 
   const paymentMutation = useMutation({
@@ -493,6 +495,7 @@ export default function Page() {
                   step="0.01"
                   onChange={(e) => {
                     const nextValue = e.currentTarget.value;
+                    paymentMutation.reset();
 
                     if (!nextValue) {
                       setPaymentAmount("");
